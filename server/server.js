@@ -1,6 +1,6 @@
 const WebSocket = require('ws');
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const wss = new WebSocket.Server({ port: PORT });
 
 const rooms = {};
@@ -17,7 +17,6 @@ wss.on('connection', (ws) => {
     let msg;
     try { msg = JSON.parse(data); } catch { return; }
 
-    // ルーム作成
     if (msg.type === 'create') {
       const roomId = generateRoomId();
       rooms[roomId] = { players: [ws], started: false };
@@ -26,35 +25,36 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'created', roomId, playerId: 0 }));
     }
 
-    // ルーム参加
     else if (msg.type === 'join') {
       const room = rooms[msg.roomId];
-      if (!room) {
-        ws.send(JSON.stringify({ type: 'error', message: 'ルームが見つかりません' }));
-        return;
-      }
-      if (room.players.length >= 2) {
-        ws.send(JSON.stringify({ type: 'error', message: 'ルームが満員です' }));
-        return;
-      }
+      if (!room) { ws.send(JSON.stringify({ type: 'error', message: 'ルームが見つかりません' })); return; }
+      if (room.players.length >= 2) { ws.send(JSON.stringify({ type: 'error', message: 'ルームが満員です' })); return; }
       room.players.push(ws);
       ws.roomId = msg.roomId;
       ws.playerId = 1;
       ws.send(JSON.stringify({ type: 'joined', roomId: msg.roomId, playerId: 1 }));
-
-      // 両者に開始を通知
       room.players[0].send(JSON.stringify({ type: 'start', playerId: 0 }));
       room.players[1].send(JSON.stringify({ type: 'start', playerId: 1 }));
       room.started = true;
     }
 
-    // ゲーム状態の同期
     else if (msg.type === 'state') {
       const room = rooms[ws.roomId];
       if (!room) return;
       room.players.forEach(p => {
         if (p !== ws && p.readyState === WebSocket.OPEN) {
           p.send(JSON.stringify({ type: 'state', playerId: ws.playerId, data: msg.data }));
+        }
+      });
+    }
+
+    // 攻撃ヒット → 相手に吹き飛びベクトルを送信
+    else if (msg.type === 'hit') {
+      const room = rooms[ws.roomId];
+      if (!room) return;
+      room.players.forEach(p => {
+        if (p !== ws && p.readyState === WebSocket.OPEN) {
+          p.send(JSON.stringify({ type: 'hit', vx: msg.vx, vy: msg.vy }));
         }
       });
     }
@@ -72,4 +72,4 @@ wss.on('connection', (ws) => {
   });
 });
 
-console.log(`WebSocketサーバー起動中: ws://localhost:${PORT}`);
+console.log(`WebSocketサーバー起動中: port ${PORT}`);
