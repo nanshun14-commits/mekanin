@@ -138,7 +138,7 @@ document.getElementById('btn-back').addEventListener('click',()=>{
   if(ws){ws.close();ws=null;}
   isOnline=false;onlineUI.classList.remove('show');phase='title';
 });
-const WS_URL=`ws://${location.hostname}:3000`;
+const WS_URL='wss://mekanin.onrender.com';
 function connectWS(){
   ws=new WebSocket(WS_URL);
   ws.onopen=()=>{onlineStatus.textContent='接続完了！';showLobby();};
